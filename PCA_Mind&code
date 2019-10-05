@@ -6,20 +6,21 @@
 一般来说，这里处理数据，都将列作为特征，而行作为一个数据样本。所以在处理时候涉及行列问题的处理，nump的优越性就有所体现。
 #-end
 
-import numpy as np
-def pca(X,k):   #k是成分,X是数据，矩阵形式
+from sklearn import datasets #仅仅用于导入iris数据集
+import numpy  as np
+def pca(X,k):   #k是成分即压缩后的特征数,X是数据，矩阵形式
     n_samples,n_features=X.shape
     mean=np.array([np.mean(X[:,i]) for i in range(n_features)])
     norm_X=X-mean  #正则化处理
     scatter_martrix=np.dot(np.transpose(norm_X),norm_X)  #散度矩阵，np.dot（）为点乘，即内积
-    eig_val,eig_vec=np.linalg.eig(scatter_matrix)
+    eig_val,eig_vec=np.linalg.eig(scatter_martrix)
     #计算特征值和特征向量  单词eigen:特征的，固有的
     eig_pairs=[(np.abs(eig_val[i]),eig_vec[:,i]) for i in range(n_features)]
     #将特征向量排序并选取k个最高值
     eig_pairs.sort(reverse=True)
-    feature=np.array([ele[1] for ele  in eig_pairs[:,k]])  #有一点疑惑
+    feature=np.array([ele[1] for ele in eig_pairs[:k]])  #有一点疑惑
     data=np.dot(norm_X,np.transpose(feature))  #得到新的数据,即降维后的数据
     return  data
-
- X=np.array([],[],[],[],[],[],[])   #进行输出测试
- print(pca(X,k))
+iris=datasets.load_iris()  #使用sklearn导入iris
+data=np.mat(data)
+print(pca(data,2))
