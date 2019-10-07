@@ -1,1 +1,214 @@
-#代码并不能运行iris,但是逻辑是对的，具有极大的借鉴意义。
+#代码并不能运行iris,可以运行源代码的数据集，但是逻辑是对的，具有极大的借鉴意义。
+#原地址：https://github.com/PANBOHE/study_MachineLearning_Python3.x/blob/master/random_Forest/train_random_forest.py
+#CSDN上也有一个源码，但是不能运行，有借鉴意义：https://blog.csdn.net/rosefun96/article/details/78833477
+import numpy as np
+import random as rd
+from math import log
+import _pickle as pickle
+from math import pow
+from sklearn.datasets import load_iris
+
+class node:#树的节点类
+    def __init__(self,fea=-1,value=None,results=None,right=None,left=None):
+        self.fea=fea  #切分数据集的属性的列索引值
+        self.value=value #设置划分的值
+        self.results=results #存储叶节点所属的类别
+        self.right=right  #右子树
+        self.left=left  #左子树
+
+def cal_gini_index(data):
+    #计算给定的数据集的Gini系数
+    total_sample = len(data)  # 样本的总个数
+    if len(data) == 0:
+        return 0
+    label_counts = label_uniq_cnt(data)  # 统计数据集中不同标签的个数
+    gini = 0
+    for label in label_counts:
+        gini = gini + pow(label_counts[label], 2)
+    gini = 1 - float(gini) / pow(total_sample, 2)
+    return gini
+
+def label_uniq_cnt(data):
+    #统计数据集中不同的类标签label的个数
+    label_uniq_cnt={}
+    for x in data:
+        label=x[len(x)-1] #取得每一个样本的类标签label
+        if label not in label_uniq_cnt:
+            label_uniq_cnt[label]=0
+        label_uniq_cnt[label]=label_uniq_cnt[label]+1
+    return label_uniq_cnt
+
+def build_tree(data):
+    #构建决策树，函数返回该决策树的根节点
+    if len(data)==0:
+        return node()
+    #1.计算当前的Gini系数
+    currentGini=cal_gini_index(data)
+    bestGain=0.0
+    bestCriteria=None  #存储最佳切分属性以及最佳切分点
+    bestSets=None #存储切分后的两个数据集
+    feature_num = len(data[0])-1  #样本中特征的个数
+    # 2.找到最好的划分
+    for fea in range(0,feature_num):#2.1 取得fea特征处所有可能的取值
+        feature_values={}    # 在fea位置处可能的取值   #存储特征fea处所有可能的取值。
+        for sample in data: #对每一个样本
+            feature_values[sample[fea]]=1 #存储特征fea处所有可能的取值.
+        #2.2 针对每一个可能的取值，尝试将数据集划分，并计算Gini系数
+        for value in feature_values.keys(): #遍历该属性的所有切分点
+            (set_1,set_2)=split_tree(data,fea,value)#2.2.1 根据fea特征中的值value将数据集划分成左右子树
+            #2.2.2 计算当前的Gini系数
+            nowGini = float(len(set_1)*cal_gini_index(set_1)+len(set_2)*cal_gini_index(set_2))/len(data)
+            #2.2.3 计算Gini系数的增加量
+            gain=currentGini-nowGini
+            #2.2.4判断此划分是否比当前的划分要更好
+            if gain>bestGain and len(set_1)>0 and len(set_2)>0 :
+                bestGain=gain
+                bestCriteria=(fea,value)
+                bestSets=(set_1,set_2)
+    #3.判断划分是否结束
+    if bestGain >0:
+        right=build_tree(bestSets[0])
+        left=build_tree(bestSets[1])
+        return node(fea=bestCriteria[0],value=bestCriteria[1],right=right,left=left)
+    else:
+        #返回当前的类别标签作为最终的类别标签
+        return node(results=label_uniq_cnt(data))
+
+def split_tree(data, fea, value):#根据特征fea中的值value将数据集data划分成左右子树,data(list):数据集,fea(int):待分割特征的索引,value(float):待分割的特征的具体值
+    set_1 = []
+    set_2 = []
+    for x in data:
+        if x[fea] >= value:
+            set_1.append(x)
+        else:
+            set_2.append(x)
+    return (set_1, set_2)  #分割后的左右子树
+
+def predict(sample, tree):#对每一个样本sample进行预测,sample(list):需要预测的样本,tree(类):构建好的分类树
+    if tree.results != None:    #只是树根
+        return tree.results  #所属的类别
+    else: # 有左右子树
+        val_sample = sample[tree.fea]
+        branch = None
+        if val_sample >= tree.value:
+            branch = tree.right
+        else:
+            branch = tree.left
+        return predict(sample, branch)
+
+def choose_samples(data, k):#data(list):原始数据集,  k(int):选择特征的个数
+    m, n = np.shape(data)  # 样本的个数和样本特征的个数
+    feature = []
+    for j in range(k):   #选择出k个特征的index
+        feature.append(rd.randint(0, n - 2))  # n-1列是标签
+    index = []
+    for i in range(m):##选择出m个样本的index
+        index.append(rd.randint(0, m - 1))
+    # 从data中选择出m个样本的k个特征，组成数据集data_samples
+    data_samples = []
+    for i in range(m):
+        data_tmp = []
+        for fea in feature:
+            data_tmp.append(data[index[i]][fea])
+        data_tmp.append(data[index[i]][-1])
+        data_samples.append(data_tmp) #data_samples(list):被选择出来的样本
+    return data_samples, feature  #feature(list):被选择的特征index
+
+def random_forest_training(data_train, trees_num): #构建随机森林,data_train(list):训练数据,trees_num(int):分类树的个数
+    trees_result = []  # 构建好每一棵树的最好划分
+    trees_feature = []#trees_feature(list):每一棵树中对原始特征的选择
+    n=np.shape(data_train)[1]  # 样本的维数
+    if n > 2:
+        k = int(log(n - 1, 2)) + 1  # 设置特征的个数
+    else:
+        k = 1
+    # 开始构建每一棵树
+    for i in range(trees_num):
+        data_samples, feature = choose_samples(data_train, k) # 随机选择m个样本, k个特征
+        tree = build_tree(data_samples) # 构建每一棵分类树
+        trees_result.append(tree) # 保存训练好的分类树
+        trees_feature.append(feature) # 保存好该分类树使用到的特征
+    return trees_result, trees_feature
+
+def split_data(data_train, feature):#选择特征,data_train(list):训练数据集,feature(list):要选择的特征
+    m = np.shape(data_train)[0]
+    data = []
+    for i in range(m):
+        data_x_tmp = []
+        for x in feature:
+            data_x_tmp.append(data_train[i][x])
+        data_x_tmp.append(data_train[i][-1])
+        data.append(data_x_tmp)
+    return data #data(list),选择出来的数据集
+
+def get_predict(trees_result, trees_fiture, data_train):  #进行预测得到结果
+    m_tree = len(trees_result)
+    m = np.shape(data_train)[0]
+    result = []
+    for i in range(m_tree):
+        clf = trees_result[i]
+        feature = trees_fiture[i]
+        data = split_data(data_train, feature)
+        result_i = []
+        for i in range(m):
+            firstSides = list((predict(data[i][0:-1], clf).keys()))  # 字典先转list，再提取索引
+            firstStr = firstSides[0]
+            result_i.append(firstStr)
+        result.append(result_i)
+    final_predict = np.sum(result, axis=0)
+    return final_predict
+
+def cal_correct_rate(test_train, final_predict):   #计算准确率
+    m = len(final_predict)
+    corr = 0.0
+    for i in range(m):
+        if (test_train[i][-1] *final_predict[i])>0 :
+            corr += 1
+    return corr / m
+
+def save_model(trees_result, trees_feature, result_file, feature_file):# 保存选择的特征
+    m = len(trees_feature)
+    f_fea = open(feature_file, "w")
+    for i in range(m):
+        fea_tmp = []
+        for x in trees_feature[i]:
+            fea_tmp.append(str(x))
+        f_fea.writelines("\t".join(fea_tmp) + "\n")
+    f_fea.close()
+    with open(result_file, 'wb') as f:    # 保存最终的随机森林模型
+        pickle.dump(trees_result, f)
+
+def load_data(file_name):  #手动导入数据,也可以用
+    data_train = []
+    f = open(file_name)
+    for line in f.readlines():
+        lines = line.strip().split("\t")
+        data_tmp = []
+        for x in lines:
+            data_tmp.append(float(x))
+        data_train.append(data_tmp)
+    f.close()
+    return data_train
+
+if __name__ == "__main__":
+    print("----------- load data -----------")
+    #data_train = load_data(r"C:\Users\kongqiwei\Desktop\data.txt")
+    iris = load_iris()   # 导入数据
+    data_train =iris.data
+    X = iris.data # 以下代码设计数据集数据和类别分离的诸多操作，适用性很好
+    y = iris.target  # iris的类别，即是哪种花,sklearn 中用0、1、2代替
+    permutation = np.random.permutation(X.shape[0])  # numpy.random.permutation(x)随机排列一个序列，或者数组
+    shuffled_dataset = X[permutation, :]  # 打乱iris的样本的顺序，让不同的类别随机分布
+    shuffled_labels = y[permutation]
+    data_train = shuffled_dataset[:100, :]  # 训练集
+    train_label = shuffled_labels[:100]
+    data_test = shuffled_dataset[100:150, :]  # 测试集
+    test_label = shuffled_labels[100:150]
+    print("----------- random forest training ------------")
+    trees_result, trees_feature = random_forest_training(data_train, 10)   # 训练random_forest模型
+    print("------------ get prediction correct rate ------------")
+    result = get_predict(trees_result, trees_feature, data_train)  # 得到训练的准确性
+    corr_rate = cal_correct_rate(data_train, result)
+    print("\t\t------correct rate: ", corr_rate)
+    print("------------ save model -------------")
+    save_model(trees_result, trees_feature, "result_file", "feature_file")    # 保存最终的随机森林模型
