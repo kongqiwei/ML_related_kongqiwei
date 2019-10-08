@@ -8,87 +8,85 @@ https://machinelearningmastery.com/implement-random-forest-scratch-python/
 http://ciml.info/dl/v0_99/ciml-v0_99-ch13.pdf
 https://archive.ics.uci.edu/ml/datasets/Iris
 """
+#Random Forest Algorithm on iris Dataset
 import csv
 import os
 import math
 import random as rd
 import numpy as np
-from sys import argv
+from sys import argv #sys.argv是一个列表，第一个元素是程序本身，随后才依次是外部给予的参数。
 import operator
 
 header = ['sepal length', 'sepal width', 'petal length', 'petal width']
-# class used to split dataset based on the answer to the question into true and false branch
+# 节点定义为类结构存储数据集（是否满足question条件而将数据集划分为左右分支）
 class Node:
-    def __init__(self, question, true_branch, false_branch):
-        self.question = question
-        self.true_branch = true_branch
-        self.false_branch = false_branch
+    def __init__(self, question, left_branch, right_branch):
+        self.question = question  #划分判别条件
+        self.left_branch = left_branch
+        self.right_branch = right_branch
 
-# Return no of classcount at the leaf level
+# 叶子结构定义为字典结构的键值对
 class Leaf:
     def __init__(self, rows):
         self.classCount = class_counts(rows)
 
-# Question for partitioning the dataset
+# 划分数据集集的判别条件
 class Question:
     def __init__(self, column, value):
         self.column = column
         self.value = value
-
     def match(self, example):
-        # Compare the feature value in an example to the
-        # feature value in this question.
+        #比较样本中的特征值和判别值
         val = example[self.column]
-        return val == self.value
+        return val == self.value  #返回一个布尔值
     def __repr__(self):
-        # This is just a helper method to print
-        # the question in a readable format.
+        # 输出条件判断情形
         condition = "=="
         return "Is %s %s %d?" % (header[self.column], condition, int(self.value))
 
-# count the number of rows for each class type and return the result in a dictionary type object
+# 记录每一row中的数量，通过字典结构返回字典的items()
 def class_counts(rows):
     counts = {}
     for row in rows:
         label = row[-1]
-        if label not in counts:
-            counts[label] = 0
+        if label not in counts:  #此处label其实是字典中的key值
+            counts[label] = 0    #key值的value为0或者+1
         counts[label] += 1
     return counts
 
-# return list with unique values for a particular column
+# 以列表形式返回某一个列的集合
 def getListForCol(dataSet, col):
     listTemp = []
     for i in range(len(dataSet)):
         listTemp.append(dataSet[i][col])
     return set(listTemp)
 
-# fetch training dataset from csv file
+# 从本地文件导入训练数据集
 def loadTrainingData():
     dataPoints = []
-    fileh = open(r"C:\Users\kongqiwei\Desktop\RandomForest-master\RandomForest-master\iris_train.csv")
+    file = open(r"C:\Users\kongqiwei\Desktop\RandomForest-master\RandomForest-master\iris_train.csv")
     try:
-        csv_reader = csv.reader(fileh, delimiter=',')
+        csv_reader = csv.reader(file, delimiter=',')  #以，为分割符读取文件
         for row in csv_reader:
             tempList = []
             tempList.append(row[0])  # sepal length
             tempList.append(row[1])  # sepal width
             tempList.append(row[2])  # petal length
             tempList.append(row[3])  # petal width
-            if row[4] == 'Iris-setosa':
+            if row[4] == 'Iris-setosa':  #将类别用数字表示
                 class_name = 0
             elif row[4] == 'Iris-versicolor':
                 class_name = 1
             else:
                 class_name = 2
-            tempList.append(class_name)  # class
+            tempList.append(class_name)  # 存储四个特征列和三个类别列
             dataPoints.append(tempList)
     except:
         pass
-    fileh.close()
+    file.close()
     return dataPoints
 
-# fetch test dataset from csv file
+# 同样读取测试集
 def loadTestData():
     dataPoints = []
     fileh = open(r"C:\Users\kongqiwei\Desktop\RandomForest-master\RandomForest-master\iris_test.csv")
@@ -113,22 +111,22 @@ def loadTestData():
     fileh.close()
     return dataPoints
 
-# return the question
+# 以逻辑布尔值返回判断结果（按列名（字符串结构）索引到的列值是否等于当前值）
 def getQuestion(colDict, colName, value):
     condition = "=="
     return "%s %s %d?" % (colDict[colName], condition, value)
 
-# partition dataset based on question into two lisst true_rows,false_rows
+# 基于判别结果将数据分为左右分支
 def partitionDataSet(dataset, question):
-    true_rows, false_rows = [], []
+    left_rows, right_rows = [], []
     for row in dataset:
         if question.match(row):
-            true_rows.append(row)
+            left_rows.append(row)
         else:
-            false_rows.append(row)
-    return true_rows, false_rows
+            right_rows.append(row)
+    return left_rows, right_rows
 
-# calculate entropy of the dataset
+# 计算数据集的熵
 def calculateEntropy(dataSet):
     counts = class_counts(dataSet)
     impurity = 0.0
@@ -141,103 +139,95 @@ def calculateEntropy(dataSet):
         pass
     return impurity
 
-# calculate info_gain
+# 计算信息增益
 def info_gain(left, right, parent_entropy):
     n = len(left) + len(right)
     p_left = len(left) / n
     p_right = len(right) / n
     return (parent_entropy - ((p_left * calculateEntropy(left)) - (p_right) * calculateEntropy(right)))
 
-# returning the best split and best info_gain
+# 返回最佳划分和最佳信息增益
 def findBestSplit(colDict, dataSet):
     best_gain = 0
     best_ques = None
     parent_entropy = calculateEntropy(dataSet)
-    # no of features to be considered for split is square root of the total number of input features
+    # 用于划分的特征的数量等于数据集大小的平方根
     n_features = int(math.sqrt(len(dataSet[0]) - 1))
     gain = 0.0
     features = list()
-    # randomly selecting sub set of features and finding best feature to split on data.
-    while len(features) < n_features:
+    # 从数据集中随机选择子集并得到最佳划分特征.
+    while len(features) < n_features:  #在数据集中随机得到子集中的特征的索引
         index = rd.randrange(len(dataSet[0]) - 1)
         if index not in features:
             features.append(index)
     for index in features:
-        # get unique values for column in list
+        # 按索引得到数据集
         uniqueListForCol = getListForCol(dataSet, index)
         for value in uniqueListForCol:
-            # get question for each value in the uniqueList
+            # 返回索引值和传入值判断的结果
             question = Question(index, value)
-            # split the dataset
-            true_rows, false_rows = partitionDataSet(dataSet, question)
-            if len(true_rows) == 0 or len(false_rows) == 0:
+            # 以结果划分数据集
+            left_rows, right_rows = partitionDataSet(dataSet, question)
+            if len(left_rows) == 0 or len(right_rows) == 0:
                 continue
-            # calculate information gain from this split
-            gain = info_gain(true_rows, false_rows, parent_entropy)
-            # selecting the best gain and best question
+            # 计算划分后的信息增益
+            gain = info_gain(left_rows,right_rows, parent_entropy)
+            # 迭代得到最好的划分特征和信息增益
             if gain >= best_gain:
                 best_gain = gain
                 best_ques = question
     return best_gain, best_ques
 
-# printing decision tree
-def print_decision_Tree(node, spacing=" "):
-    # Base case: we've reached a leaf
-    if isinstance(node, Leaf):
-        print (spacing + "Predict", node.classCount)
+# 输出决策树
+def print_decision_Tree(node, space=" "):
+    if isinstance(node, Leaf): #输出叶子节点
+        print (space + "Predict", node.classCount)
         return
-    # Print the question at this node
-    print(spacing + str(node.question))
-    # Call this function recursively on the true branch
-    print(spacing + '--> True: ')
-    print_decision_Tree(node.true_branch, spacing + "  ")
-    # Call this function recursively on the false branch
-    print(spacing + '--> False: ')
-    print_decision_Tree(node.false_branch, spacing + " ")
+    print(space + str(node.question)) #输出叶子节点的结果
+    print(space + '--> Left: ')
+    print_decision_Tree(node.left_branch, space + "  ") #左节点
+    print(space + '--> Right: ')
+    print_decision_Tree(node.right_branch, space+ " ")  #右节点
 
-# Build decision tree with dataSet,colDict is a dictionary which consists of key = col_index,value = column_name
+# 建立决策树
 def build_decision_Tree(dataSet, colDict, maxDepth, depth):
     gain, question = findBestSplit(colDict, dataSet)
     if gain == 0:
         return Leaf(dataSet)
     if (depth >= maxDepth):
         return Leaf(dataSet)
-    true_rows, false_rows = partitionDataSet(dataSet, question)
-    # Recursively build the true branch.
-    true_branch = build_decision_Tree(true_rows, colDict, maxDepth, depth + 1)
-    # Recursively build the false branch.
-    false_branch = build_decision_Tree(false_rows, colDict, maxDepth, depth + 1)
-    return Node(question, true_branch, false_branch)
+    left_rows, right_rows = partitionDataSet(dataSet, question)
+    # 递归建立树
+    left_branch = build_decision_Tree(left_rows, colDict, maxDepth, depth + 1)
+    right_branch = build_decision_Tree(right_rows, colDict, maxDepth, depth + 1)
+    return Node(question, left_branch, right_branch)
 
-# classify the record on the node if the row satisfy condition asked in the form of question at this node
+# 将row根据question函数进行划分,如果满足叶子节点则返回节点的键值对
 def classify(row, node):
-    # Base case: we've reached a leaf
+    # 叶子节点
     if isinstance(node, Leaf):
         return node.classCount
-    # Decide whether to follow the true-branch or the false-branch.
-    # Compare the feature / value stored in the node,
-    # to the example we're considering.
+    # 划分row为左右节点
     if node.question.match(row):
-        return classify(row, node.true_branch)
+        return classify(row, node.left_branch)
     else:
-        return classify(row, node.false_branch)
-        # getting bootstrap sample of data
+        return classify(row, node.right_branch)
 
-def bootstrap_sample(data):
+def bootstrap_sample(data):#返回子数据集，通过bootstap（自助法）思想
     resultList = []
     randomRows = np.random.randint(len(data), size=len(data))
     for i in randomRows:
         resultList.append(data[i])
     return resultList
 
-def findHeightHelper(node):
+def findHeightHelper(node):  #递归找到树的最大深度
     if isinstance(node, Leaf):
         return 1
-    leftPart = findHeightHelper(node.true_branch)
-    rightPart = findHeightHelper(node.false_branch)
+    leftPart = findHeightHelper(node.left_branch)
+    rightPart = findHeightHelper(node.right_branch)
     return 1 + max(leftPart, rightPart)
 
-def print_leaf(counts):
+def print_leaf(counts):  #输出叶子节点，以字典键值对的方式输出叶子上每一个label的概率
     total = sum(counts.values()) * 1.0
     probs = {}
     for lbl in counts.keys():
@@ -245,9 +235,9 @@ def print_leaf(counts):
     return probs
 
 def main(*args):
-    # fetching training data from csv file in the trainData list
+    # 加载训练集
     trainData = loadTrainingData()
-    # fetching test data from csv file in the testData list
+    # 记载测试集
     testData = loadTestData()
     colDict = {}
     colDict[0] = "sepal length"
@@ -255,41 +245,37 @@ def main(*args):
     colDict[2] = "petal length"
     colDict[3] = "petal width"
     count_no_trees = int(input("Please enter no of trees to generate "))
-    list_tress = [] * count_no_trees
+    list_tress = [] * count_no_trees    #存储随机树
     result = 0
     count = 0
-    # generate each tree with depth 10
+    # 生成多棵树
     while count_no_trees > 0:
-        # getting bootstrap sample
+        # 自助法得到数据子集
         bootstrapTrainData = bootstrap_sample(trainData)
-        tree = build_decision_Tree(bootstrapTrainData, colDict, 30, 1)
-        count = 0
-        # adding learned decision tree in the set
+        tree = build_decision_Tree(bootstrapTrainData, colDict, 30, 1)  #训练得到每一棵树的模型
+        # 将训练的到树加到存储树的list
         list_tress.append(tree)
-        count_no_trees -= 1
-    count = 0
-    # doing prediction on test dataset from learned random forest
+        count_no_trees -= 1  #递减树的数目
+    # 在训练得到的模型上测试
     print('Performing prediction on test data ')
-    print(' ')
-    # for each data item of testData getting predictions from different
-    # learned decision tree classifier
+    # 将测试数据集用于不同的模型树上的到测试结果
     for row in testData:
-        result = [print_leaf(classify(row, tree)) for tree in list_tress]
+        result = [print_leaf(classify(row, tree)) for tree in list_tress]  #存储已经训练好的众多随机树的结果
         class_types = {}
         for i in range(len(result)):
-            dict_result = result[i]
-            maxLabel = max(dict_result, key=lambda k: dict_result[k])
+            dict_result = result[i]  #存储树结果
+            maxLabel = max(dict_result, key=lambda k: dict_result[k])  #获取投票最高的特征的索引值，体现bagging思想
             if maxLabel not in class_types:
                 class_types[maxLabel] = 1
             else:
                 val = class_types[maxLabel]
                 class_types[maxLabel] = val + 1
-        # getting class label with maximum vote
-        finalLabel = max(class_types.items(), key=operator.itemgetter(1))[0]
+        # 根据索引获取投票最高的类,体现bagging思想
+        finalLabel = max(class_types.items(), key=operator.itemgetter(1))[0]#此处也在排序，finalLabel是预测值
         for key, val in class_types.items():
-            if row[-1] == finalLabel:
+            if row[-1] == finalLabel:  #row[-1]最后一行是分类结果，进行验证，累计测试的正确次数
                 count += 1
                 break
-        print('Actual {0} predicted {1}'.format(row[-1], finalLabel))
-    print('Accuracy for Test Data ' + str((count / len(testData)) * 100) + ' %')
+        print('Actual {0} predicted {1}'.format(row[-1], finalLabel))   #输出实际和预测值
+    print('Accuracy for Test Data ' + str((count / len(testData)) * 100) + ' %')   #计算准确率
 main(*argv[0:])
