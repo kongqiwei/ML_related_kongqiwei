@@ -1,4 +1,4 @@
-#可复用性很高的通用代码
+#复用性很高的通用代码
 ##完美读取二维结构的数据，分离出第一行和第一列的标题，单独读取出数据
 def readfile(filename):
   file=open(filename)
