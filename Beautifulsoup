@@ -1,0 +1,8 @@
+import urllib
+from bs4 import BeautifulSoup
+import requests
+c=urllib.request.urlopen('https://www.cnblogs.com/kangjianwei101/category/791617.html')
+soup=BeautifulSoup(c.read(),'html.parser')  #一定要有html.parser这个解析器，这是python对应的bs4标准解析器
+links=soup('a')
+for i in range(12):
+	print(links[i])
